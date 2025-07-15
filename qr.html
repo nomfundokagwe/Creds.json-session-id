@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZUKO-MD QR Scanner</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-blue: #3498db;
+            --dark-blue: #2980b9;
+            --success-green: #2ecc71;
+            --error-red: #e74c3c;
+            --purple: #9b59b6;
+            --text-light: #ffffff;
+            --text-dark: #2c3e50;
+            --bg-dark: #000000;
+            --glass-bg: rgba(0, 0, 0, 0.7);
+            --transition-speed: 0.3s;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(-45deg, #4a90e2, #3ac569, #9b59b6, #e74c3c);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+            color: var(--text-light);
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+        }
+
+        .qr-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+            transition: transform var(--transition-speed) ease;
+        }
+
+        .qr-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .qr-image-container {
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .qr-image {
+            width: 100%;
+            border-radius: 12px;
+            border: 8px solid white;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .qr-header {
+            margin-bottom: 15px;
+        }
+
+        .qr-header h2 {
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+            color: var(--text-light);
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .qr-header p {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        .qr-timer {
+            margin: 20px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        progress {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        progress::-webkit-progress-bar {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        progress::-webkit-progress-value {
+            background: linear-gradient(to right, var(--primary-blue), var(--purple));
+            border-radius: 4px;
+            transition: width 1s linear;
+        }
+
+        .timer-text {
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--primary-blue);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--dark-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .status-message {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 500;
+            display: none;
+        }
+
+        .status-error {
+            background-color: rgba(231, 76, 60, 0.2);
+            border: 1px solid var(--error-red);
+            color: var(--error-red);
+        }
+
+        /* Animation for QR code */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        .qr-image {
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 480px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .qr-card {
+                padding: 20px;
+            }
+            
+            .qr-header h2 {
+                font-size: 1.5rem;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="qr-card">
+            <div class="qr-image-container">
+                <img id="qr-image" class="qr-image" src="/server" alt="ZUKO-MD QR Code">
+            </div>
+            
+            <div class="qr-header">
+                <h2>ZUKO-MD QR</h2>
+                <p id="legend">Scan the QR code within <span id="time-remaining">30</span> seconds</p>
+            </div>
+            
+            <div class="qr-timer">
+                <progress value="0" max="30" id="progressBar"></progress>
+                <div class="timer-text" id="timer-text">Time remaining: 30s</div>
+            </div>
+            
+            <div id="status-message" class="status-message">
+                <i class="fas fa-exclamation-circle"></i> <span id="status-text"></span>
+            </div>
+            
+            <div class="action-buttons">
+                <button id="reload-btn" class="btn btn-primary">
+                    <i class="fas fa-sync-alt"></i> Refresh QR
+                </button>
+                <button id="help-btn" class="btn btn-secondary">
+                    <i class="fas fa-question-circle"></i> Help
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Timer functionality
+        let timeleft = 30;
+        const timerElement = document.getElementById('timer-text');
+        const timeRemainingElement = document.getElementById('time-remaining');
+        const progressBar = document.getElementById('progressBar');
+        const statusMessage = document.getElementById('status-message');
+        const statusText = document.getElementById('status-text');
+        const qrImage = document.getElementById('qr-image');
+        const reloadBtn = document.getElementById('reload-btn');
+        const helpBtn = document.getElementById('help-btn');
+        
+        // Start the countdown timer
+        const downloadTimer = setInterval(updateTimer, 1000);
+        
+        function updateTimer() {
+            timeleft--;
+            timeRemainingElement.textContent = timeleft;
+            timerElement.textContent = `Time remaining: ${timeleft}s`;
+            progressBar.value = 30 - timeleft;
+            
+            // Change progress bar color when time is running out
+            if (timeleft <= 10) {
+                progressBar.style.setProperty('--primary-blue', '#e74c3c');
+                progressBar.style.setProperty('--purple', '#c0392b');
+            }
+            
+            if (timeleft <= 0) {
+                clearInterval(downloadTimer);
+                showExpiredMessage();
+            }
+        }
+        
+        function showExpiredMessage() {
+            statusMessage.style.display = 'block';
+            statusMessage.className = 'status-message status-error';
+            statusText.innerHTML = '<strong>QR Code Expired!</strong> Please refresh to get a new one.';
+            timerElement.style.display = 'none';
+        }
+        
+        // Reload button functionality
+        reloadBtn.addEventListener('click', function() {
+            // Add cache busting parameter to force fresh QR code
+            qrImage.src = '/server?t=' + new Date().getTime();
+            
+            // Reset timer
+            clearInterval(downloadTimer);
+            timeleft = 30;
+            timeRemainingElement.textContent = timeleft;
+            timerElement.textContent = `Time remaining: ${timeleft}s`;
+            progressBar.value = 0;
+            timerElement.style.display = 'block';
+            statusMessage.style.display = 'none';
+            
+            // Reset progress bar color
+            progressBar.style.setProperty('--primary-blue', '#3498db');
+            progressBar.style.setProperty('--purple', '#9b59b6');
+            
+            // Restart timer
+            downloadTimer = setInterval(updateTimer, 1000);
+        });
+        
+        // Help button functionality
+        helpBtn.addEventListener('click', function() {
+            alert("How to use:\n1. Open WhatsApp on your phone\n2. Tap Menu → Linked Devices\n3. Point your camera at the QR code\n4. Wait for connection confirmation");
+        });
+        
+        // Preload the next QR code 5 seconds before expiration
+        setInterval(function() {
+            if (timeleft <= 5 && timeleft > 0) {
+                // Preload but don't display yet
+                const tempImg = new Image();
+                tempImg.src = '/server?preload=' + new Date().getTime();
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
