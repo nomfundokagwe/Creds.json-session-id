@@ -13,8 +13,8 @@ const {
 const logger = pino({ level: "fatal" }).child({ level: "fatal" });
 const path = require('path');
 const fs = require('fs');
+const QRCode = require('qrcode');
 
-// 1. Use consistent temp directory
 const tempDir = path.join(__dirname, 'wa_sessions');
 if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
@@ -25,81 +25,89 @@ router.get('/', async (req, res) => {
     const sessionDir = path.join(tempDir, sessionId);
     
     try {
-        // 2. Initialize WhatsApp connection
         const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
         const sock = makeWASocket({
             auth: {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, logger),
             },
-            printQRInTerminal: true,
             logger,
             browser: Browsers.macOS("ZUKO-MD"),
             syncFullHistory: false,
-            getMessage: async () => ({}) // Required dummy function
+            generateHighQualityLinkPreview: true,
+            emitOwnEvents: true,
+            getMessage: async () => ({})
         });
 
-        // 3. Proper connection handling
-        sock.ev.on('connection.update', (update) => {
-            const { connection, qr, isNewLogin } = update;
+        // Error handling
+        sock.ws.on('CB:error', (error) => {
+            console.log('Socket Error:', error);
+            if (error.status === 428) {
+                console.log('Reconnecting after error...');
+                setTimeout(() => sock.end(), 3000);
+            }
+        });
+
+        sock.ev.on('connection.update', async (update) => {
+            const { connection, qr } = update;
             
             if (qr) {
-                console.log('QR RECEIVED:', qr);
-                res.json({ qr }); // Send QR to client
+                console.log('QR Generated');
+                const qrImage = await QRCode.toDataURL(qr);
+                res.json({ qr: qrImage });
             }
 
             if (connection === 'open') {
-                console.log('WHATSAPP CONNECTED!');
-                handleSuccessfulConnection();
+                console.log('✅ WhatsApp Connected!');
+                await handleSuccess();
             }
         });
 
         sock.ev.on('creds.update', saveCreds);
 
-        // 4. Handle successful connection
-        const handleSuccessfulConnection = async () => {
+        const handleSuccess = async () => {
             try {
-                await delay(2000); // Wait for full initialization
+                await delay(2000);
+                if (!sock.user?.id) throw new Error("No user ID");
                 
-                // Verify connection
-                if (!sock.user?.id) {
-                    throw new Error("Connection failed - no user ID");
-                }
-
-                // Send credentials
                 const credsPath = path.join(sessionDir, 'creds.json');
                 res.setHeader('Content-Type', 'application/json');
-                res.setHeader('Content-Disposition', 'attachment; filename="zuko_creds.json"');
-                res.sendFile(credsPath, () => {
-                    // Send confirmation message
-                    sock.sendMessage(sock.user.id, { 
-                        text: '✅ *ZUKO-MD Connected!*\n\n' +
-                              'Your session is now active!\n\n' +
-                              'Type /help for commands.'
-                    });
-                    sock.ws.close();
+                res.setHeader('Content-Disposition', 'attachment; filename="creds.json"');
+                res.sendFile(credsPath);
+                
+                await sock.sendMessage(sock.user.id, { 
+                    text: '✅ Successfully connected to ZUKO-MD!'
                 });
-
+                
             } catch (e) {
-                console.error('CONNECTION ERROR:', e);
+                console.error('Finalization Error:', e);
                 res.status(500).json({ error: e.message });
+            } finally {
+                sock.ws.close();
             }
         };
 
-        // 5. Handle pairing code request
         if (!sock.authState.creds.registered) {
             const num = req.query.number?.replace(/[^0-9]/g, '');
             if (!num || num.length < 11) {
-                return res.status(400).json({ error: "Invalid number. Use country code format (e.g. 15551234567)" });
+                return res.status(400).json({ error: "Use full number with country code" });
             }
             
-            const code = await sock.requestPairingCode(num);
-            console.log('PAIRING CODE:', code);
-            res.json({ code });
+            try {
+                const code = await sock.requestPairingCode(num);
+                if (!code || code.length !== 8) {
+                    throw new Error('Invalid pairing code');
+                }
+                console.log('Valid Pairing Code:', code);
+                res.json({ code });
+            } catch (err) {
+                console.log('Pairing Failed:', err);
+                throw new Error(`Failed to pair: ${err.message}`);
+            }
         }
 
     } catch (err) {
-        console.error('FATAL ERROR:', err);
+        console.error('Fatal Error:', err);
         res.status(500).json({ 
             error: "Connection failed",
             details: err.message 
