@@ -11,13 +11,12 @@ const {
 } = require('@whiskeysockets/baileys');
 
 const logger = pino({ level: "fatal" }).child({ level: "fatal" });
-
-// Render-compatible temp dir (uses ephemeral storage)
-const tempDir = './tmp'; // Render allows `/tmp` but we'll use local `./tmp`
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
 
-// Ensure temp dir exists (works on Render)
+const tempDir = path.join(__dirname, 'tmp');
+
+// Ensure temp dir exists
 if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
 }
@@ -33,32 +32,58 @@ router.get('/', async (req, res) => {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, logger),
             },
-            printQRInTerminal: false,
+            printQRInTerminal: true, // Enabled for debugging
             logger,
-            browser: Browsers.macOS("Safari")
+            browser: Browsers.macOS("ZUKO-MD"), // Custom name
+            syncFullHistory: false,
+            getMessage: async () => {}
         });
 
-        sock.ev.on('creds.update', saveCreds);
+        // Critical connection handler
+        sock.ev.on('connection.update', (update) => {
+            const { connection, lastDisconnect, qr } = update;
+            console.log('Connection Update:', update);
+            
+            if (qr) {
+                console.log('QR Code:', qr);
+            }
 
-        sock.ev.on("connection.update", async (update) => {
-            if (update.connection === "open") {
-                await delay(3000);
-                const credsPath = path.join(sessionDir, 'creds.json');
-                
-                // Send creds.json directly (no MEGA)
-                res.setHeader('Content-Type', 'application/json');
-                res.setHeader('Content-Disposition', 'attachment; filename="creds.json"');
-                res.sendFile(credsPath, (err) => {
-                    if (err) {
-                        logger.error("Failed to send creds:", err);
-                        res.status(500).json({ error: "Failed to generate session" });
-                    }
-                    // Cleanup (important for Render)
-                    fs.rmSync(sessionDir, { recursive: true, force: true });
-                    sock.ws.close();
-                });
+            if (connection === 'open') {
+                console.log('✅ Connected to WhatsApp!');
+                // Send credentials to user
+                sendCredentials();
+            }
+
+            if (connection === 'close') {
+                const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== 401;
+                console.log(`Connection closed, ${shouldReconnect ? 'reconnecting' : 'not reconnecting'}...`);
+                if (shouldReconnect) {
+                    setTimeout(() => connectToWhatsApp(), 3000);
+                }
             }
         });
+
+        const sendCredentials = async () => {
+            try {
+                const credsPath = path.join(sessionDir, 'creds.json');
+                res.setHeader('Content-Type', 'application/json');
+                res.setHeader('Content-Disposition', 'attachment; filename="creds.json"');
+                res.sendFile(credsPath);
+                
+                // Send confirmation message
+                await sock.sendMessage(sock.user.id, { 
+                    text: '✅ Successfully connected to ZUKO-MD!\n\n' +
+                          'Your session credentials are attached.'
+                });
+                
+            } catch (err) {
+                logger.error("Credentials error:", err);
+                res.status(500).json({ error: "Failed to send credentials" });
+            } finally {
+                sock.ws.close();
+                fs.rmSync(sessionDir, { recursive: true });
+            }
+        };
 
         if (!sock.authState.creds.registered) {
             const num = req.query.number?.replace(/[^0-9]/g, '');
@@ -68,6 +93,7 @@ router.get('/', async (req, res) => {
             const code = await sock.requestPairingCode(num);
             res.json({ code });
         }
+
     } catch (err) {
         logger.error("Pairing error:", err);
         res.status(500).json({ error: err.message });
