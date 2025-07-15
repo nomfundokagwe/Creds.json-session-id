@@ -16,7 +16,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Create temp directory if not exists
-const tempDir = path.join(__path, 'temp');
+const tempDir = path.join(__dirname, 'temp'); // Use __dirname instead
 if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir, { recursive: true });
 }
