@@ -29,7 +29,7 @@ const createConnection = async (sessionPath, res) => {
             keys: makeCacheableSignalKeyStore(state.keys, logger),
         },
         logger,
-        browser: Browsers.macOS("ZUKO-MD"),
+        browser: Browsers.macOS("TECH-MD"),
         syncFullHistory: false,
         getMessage: async () => ({}),
         connectTimeoutMs: 30_000,
@@ -71,7 +71,7 @@ const createConnection = async (sessionPath, res) => {
             res.sendFile(credsPath);
             
             await sock.sendMessage(sock.user.id, {
-                text: '✅ Successfully connected to ZUKO-MD!'
+                text: '✅ Successfully connected to TECH-MD!'
             });
         } finally {
             setTimeout(() => sock.ws.close(), 5000);
@@ -119,3 +119,4 @@ router.get('/', async (req, res) => {
 });
 
 module.exports = router;
+        
